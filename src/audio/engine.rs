@@ -4,10 +4,16 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use super::generator::KeyType;
 use super::soundpack::{get_bundled_soundpacks, SwitchSoundpack};
 
+/// Hard ceiling on the combined gain (master x release x per-profile) so stacking three
+/// independent controls can't drive the mixer into clipping.
+const MAX_COMBINED_GAIN: f32 = 1.6;
+
 pub struct AudioState {
     soundpacks: Vec<SwitchSoundpack>,
     current_pack_index: AtomicU32,
-    volume: AtomicU32, // Percentage 0..150
+    volume: AtomicU32, // Master, percentage 0..150
+    release_volume: AtomicU32, // Upstroke level relative to master, percentage 0..150
+    pack_volumes: Vec<AtomicU32>, // Per-profile trim, percentage 0..150
     is_muted: AtomicBool,
 }
 
@@ -27,10 +33,14 @@ impl AudioState {
             }
         }
 
+        let pack_volumes = soundpacks.iter().map(|_| AtomicU32::new(100)).collect();
+
         Self {
             soundpacks,
             current_pack_index: AtomicU32::new(0),
             volume: AtomicU32::new(75),
+            release_volume: AtomicU32::new(100),
+            pack_volumes,
             is_muted: AtomicBool::new(false),
         }
     }
@@ -57,6 +67,31 @@ impl AudioState {
         self.volume.load(Ordering::SeqCst)
     }
 
+    /// Upstroke (key release) level, independent of the master volume. 0 silences
+    /// release clicks entirely while leaving keypresses untouched.
+    pub fn set_release_volume(&self, percent: u32) {
+        self.release_volume.store(percent.min(150), Ordering::SeqCst);
+    }
+
+    pub fn get_release_volume(&self) -> u32 {
+        self.release_volume.load(Ordering::SeqCst)
+    }
+
+    /// Per-profile trim, so a naturally louder switch profile can be balanced against
+    /// the others without touching the master volume.
+    pub fn set_pack_volume(&self, index: usize, percent: u32) {
+        if let Some(slot) = self.pack_volumes.get(index) {
+            slot.store(percent.min(150), Ordering::SeqCst);
+        }
+    }
+
+    pub fn get_pack_volume(&self, index: usize) -> u32 {
+        self.pack_volumes
+            .get(index)
+            .map(|v| v.load(Ordering::SeqCst))
+            .unwrap_or(100)
+    }
+
     pub fn toggle_mute(&self) -> bool {
         let current = self.is_muted.load(Ordering::SeqCst);
         let next = !current;
@@ -68,8 +103,28 @@ impl AudioState {
         self.is_muted.load(Ordering::SeqCst)
     }
 
+    /// Resolved playback gain for a stroke: master x (release trim, upstrokes only)
+    /// x current profile trim, capped to keep the sum out of clipping territory.
+    pub fn effective_gain(&self, is_press: bool) -> f32 {
+        let master = self.volume.load(Ordering::Relaxed) as f32 / 100.0;
+        let release = if is_press {
+            1.0
+        } else {
+            self.release_volume.load(Ordering::Relaxed) as f32 / 100.0
+        };
+        let pack_idx = self.current_pack_index.load(Ordering::Relaxed) as usize;
+        let pack = self.get_pack_volume(pack_idx) as f32 / 100.0;
+
+        (master * release * pack).clamp(0.0, MAX_COMBINED_GAIN)
+    }
+
     pub fn play_key(&self, stream_handle: &OutputStreamHandle, key_type: KeyType, is_press: bool, pan: f32) {
         if self.is_muted.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let base_volume = self.effective_gain(is_press);
+        if base_volume <= 0.0 {
             return;
         }
 
@@ -80,8 +135,6 @@ impl AudioState {
         };
 
         let sample_buffer = pack.get_sample(key_type, is_press);
-        let volume_percent = self.volume.load(Ordering::Relaxed) as f32;
-        let base_volume = (volume_percent / 100.0).clamp(0.0, 1.5);
 
         // Organic micro-variations so keystrokes don't sound robotic
         let pitch_jitter = 1.0 + (fastrand::f32() - 0.5) * 0.05;

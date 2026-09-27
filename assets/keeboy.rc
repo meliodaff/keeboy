@@ -1,0 +1,27 @@
+1 ICON "keeboy.ico"
+
+1 VERSIONINFO
+FILEVERSION 0,1,0,0
+PRODUCTVERSION 0,1,0,0
+FILEOS 0x40004L
+FILETYPE 0x1L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Keeboy"
+            VALUE "FileDescription", "Keeboy"
+            VALUE "FileVersion", "0.1.0"
+            VALUE "InternalName", "keeboy"
+            VALUE "LegalCopyright", "MIT License"
+            VALUE "OriginalFilename", "keeboy.exe"
+            VALUE "ProductName", "Keeboy - Mechanical Keyboard Sound Engine"
+            VALUE "ProductVersion", "0.1.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 0x04B0
+    END
+END

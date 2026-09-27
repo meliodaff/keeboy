@@ -69,3 +69,50 @@ fn test_soundpack_bundling_and_state() {
     state.set_soundpack(1);
     assert_eq!(state.current_soundpack_index(), 1);
 }
+
+#[test]
+fn test_independent_volume_controls() {
+    let state = AudioState::new();
+
+    // Defaults: master 75%, release at full relative level, every profile untrimmed.
+    assert_eq!(state.get_volume(), 75);
+    assert_eq!(state.get_release_volume(), 100);
+    assert_eq!(state.get_pack_volume(0), 100);
+
+    // Release volume is independent of master: presses stay put when it changes.
+    state.set_volume(100);
+    state.set_release_volume(50);
+    assert!((state.effective_gain(true) - 1.0).abs() < 1e-6, "press gain should ignore release trim");
+    assert!((state.effective_gain(false) - 0.5).abs() < 1e-6, "release gain should be halved");
+
+    // Release can be silenced entirely without muting keypresses.
+    state.set_release_volume(0);
+    assert_eq!(state.effective_gain(false), 0.0);
+    assert!(state.effective_gain(true) > 0.0);
+
+    // Per-profile trim applies only to the selected profile.
+    state.set_release_volume(100);
+    state.set_pack_volume(0, 50);
+    state.set_pack_volume(1, 150);
+    assert_eq!(state.get_pack_volume(0), 50);
+    assert_eq!(state.get_pack_volume(1), 150);
+
+    state.set_soundpack(0);
+    assert!((state.effective_gain(true) - 0.5).abs() < 1e-6);
+    state.set_soundpack(1);
+    assert!((state.effective_gain(true) - 1.5).abs() < 1e-6);
+
+    // Stacked controls stay clamped so they can't drive the output into clipping.
+    state.set_volume(150);
+    state.set_release_volume(150);
+    state.set_pack_volume(1, 150);
+    assert!(state.effective_gain(false) <= 1.6, "combined gain must stay capped");
+
+    // Out-of-range requests are clamped, and unknown profile indexes are inert.
+    state.set_volume(500);
+    assert_eq!(state.get_volume(), 150);
+    state.set_release_volume(500);
+    assert_eq!(state.get_release_volume(), 150);
+    state.set_pack_volume(999, 100);
+    assert_eq!(state.get_pack_volume(999), 100, "missing profile falls back to 100%");
+}

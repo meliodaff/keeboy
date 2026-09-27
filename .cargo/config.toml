@@ -1,0 +1,6 @@
+[target.x86_64-pc-windows-msvc]
+# Statically link the MSVC C runtime so the shipped binary does not require the
+# Visual C++ Redistributable (VCRUNTIME140.dll) on the machine that downloads it.
+# Everything else Keeboy imports (kernel32, user32, shell32, ole32, api-ms-win-crt-*)
+# is part of Windows 10/11 itself.
+rustflags = ["-C", "target-feature=+crt-static"]
