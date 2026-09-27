@@ -46,7 +46,7 @@ fn main() {
             };
 
             while let Ok(event) = rx.recv() {
-                audio_state_worker.play_key(&stream_handle, event.key_type, event.is_press);
+                audio_state_worker.play_key(&stream_handle, event.key_type, event.is_press, event.pan);
             }
         })
         .expect("Failed to spawn audio worker thread");

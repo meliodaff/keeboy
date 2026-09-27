@@ -23,10 +23,13 @@ A high-performance, ultra-lightweight Windows utility written in Rust that plays
   - Built with native Windows Low-Level Keyboard Hooks (`WH_KEYBOARD_LL`).
   - Pre-decoded in-memory PCM audio buffers with Direct WASAPI audio dispatch.
 - **🎧 Switch Profiles Included**:
-  - **8BitDo Retro** *(Default)* (Authentic Kailh Box White V2 Click Bar, retro aluminum plate clack & double-click reset)
+  - **8BitDo Retro** *(Default)* (Full-bodied Kailh Box White V2 Click Bar, retro aluminum plate clack & double-click reset)
   - **8BitDo Super Buttons** (Giant retro arcade button slam + spring bounce)
   - **Pure Deep Thock** (Heavy marble / tape mod deep woody thock)
   - **Ultra Creamy** (Milky Yellow / 205g0 juicy bubble pop)
+- **🔊 3D Spatial Stereo & Natural Room Depth**:
+  - Real-time **horizontal stereo panning** based on key layout (left-hand keys pan left, right-hand keys pan right, spacebar center).
+  - Binaural room cross-feed / deskmat Haas effect eliminates "shallow/inside-your-head" mono sound and places the keyboard on your physical desk.
 - **🎹 Realistic Physical Switch Dynamics**:
   - Separate downstroke (press) and snappy upstroke (release) acoustic models.
   - Dedicated acoustic models for **Spacebar** (deep hollow cavity resonance & wire stabilizer tick), **Enter**, and **Backspace**.

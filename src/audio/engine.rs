@@ -68,7 +68,7 @@ impl AudioState {
         self.is_muted.load(Ordering::SeqCst)
     }
 
-    pub fn play_key(&self, stream_handle: &OutputStreamHandle, key_type: KeyType, is_press: bool) {
+    pub fn play_key(&self, stream_handle: &OutputStreamHandle, key_type: KeyType, is_press: bool, pan: f32) {
         if self.is_muted.load(Ordering::Relaxed) {
             return;
         }
@@ -83,13 +83,32 @@ impl AudioState {
         let volume_percent = self.volume.load(Ordering::Relaxed) as f32;
         let base_volume = (volume_percent / 100.0).clamp(0.0, 1.5);
 
-        // Organic micro-variations so keystrokes don't sound robotic:
-        // +/- 3% pitch variation
-        let pitch_jitter = 1.0 + (fastrand::f32() - 0.5) * 0.06;
-        // +/- 4% volume variation
-        let vol_jitter = base_volume * (1.0 + (fastrand::f32() - 0.5) * 0.08);
+        // Organic micro-variations so keystrokes don't sound robotic
+        let pitch_jitter = 1.0 + (fastrand::f32() - 0.5) * 0.05;
+        let vol_jitter = base_volume * (1.0 + (fastrand::f32() - 0.5) * 0.06);
 
-        let source = SamplesBuffer::new(1, pack.sample_rate, (*sample_buffer).clone())
+        // Natural Stereo Panning with Deskmat Cross-Feed (Haas Effect)
+        // Eliminates the "shallow" mono feeling by giving true physical acoustic space
+        let left_gain = ((1.0 - pan) * 0.55).clamp(0.18, 0.92);
+        let right_gain = ((1.0 + pan) * 0.55).clamp(0.18, 0.92);
+
+        // 1.5ms room reflection delay (approx 66 samples at 44.1kHz)
+        let delay_samples = 66;
+        let n = sample_buffer.len();
+        let mut stereo_samples = Vec::with_capacity(n * 2);
+
+        for i in 0..n {
+            let direct = sample_buffer[i];
+            let delayed = if i >= delay_samples { sample_buffer[i - delay_samples] * 0.25 } else { 0.0 };
+
+            let l = direct * left_gain + delayed * right_gain * 0.45;
+            let r = direct * right_gain + delayed * left_gain * 0.45;
+
+            stereo_samples.push(l);
+            stereo_samples.push(r);
+        }
+
+        let source = SamplesBuffer::new(2, pack.sample_rate, stereo_samples)
             .amplify(vol_jitter)
             .speed(pitch_jitter);
 
